@@ -1,5 +1,6 @@
 const UssdMenu = require('ussd-menu-builder');
 const translate = require('translate-google');
+const { te } = require('translate-google/languages');
 
 let menu = new UssdMenu();
 
@@ -18,56 +19,43 @@ let sessions = {};
 menu.sessionConfig({
     start: (sessionId) => {
         return new Promise((resolve, reject) => {
-            try {
-                if (!(sessionId in sessions)) sessions[sessionId] = {};
-                resolve();
-            } catch (error) {
-                reject(error);
-            }
+            if (!(sessionId in sessions)) sessions[sessionId] = {};
+            resolve();
         });
 
     },
     end: (sessionId) => {
         return new Promise((resolve, reject) => {
-            try {
-                delete sessions[sessionId];
-                resolve();
-            } catch (error) {
-                reject(error);
-            }
+            delete sessions[sessionId];
+            resolve();
         });
     },
     set: (sessionId, key, value) => {
         return new Promise((resolve, reject) => {
-            try {
-                sessions[sessionId][key] = value;
-                resolve(value);
-            } catch (error) {
-                reject(error);
-            }
+            sessions[sessionId][key] = value;
+            resolve(value);
         });
     },
     get: (sessionId, key) => {
         return new Promise((resolve, reject) => {
-            try {
-                let value = sessions[sessionId][key];
-                resolve(value);
-            } catch (error) {
-                reject(error);
-            }
+            let value = sessions[sessionId][key];
+            resolve(value);
         });
     }
 });
 
 menu.startState({
-    run: () => {
-        menu.session.start(sessions[menu.args.sessionId]).then(() => {
-            menu.con('Welcome. Choose a language option:' +
-                '\n1. English' +
-                '\n2. Yoruba' +
-                '\n3. Igbo' +
-                '\n4. Hausa')
-        });
+    run: async () => {
+        let session = menu.session;
+
+        await session.start();
+
+        menu.con('Welcome. Choose a language option:' +
+            '\n1. English' +
+            '\n2. Yoruba' +
+            '\n3. Igbo' +
+            '\n4. Hausa');
+
     },
     // next object links to next state based on user input
     next: {
@@ -80,15 +68,16 @@ menu.startState({
 
 // lANGUAGEE
 menu.state('selectLanguage', {
-    run: () => {
+    run: async () => {
         let languageOption = menu.val;
-        let session = sessions[menu.args.sessionId];
+        let session = menu.session;
 
-        menu.session.set(session, 'language', languages[languageOption]).then(() => {
-            translate('What is your name:', { to: languages[languageOption] }).then(res => {
-                menu.con(res)
-            });
-        });
+
+        await session.set('language', languages[languageOption]);
+
+        const text = await translate('What is your name:', { to: languages[languageOption] });
+        menu.con(text);
+
     },
     next: {
         '*[a-zA-Z]+': 'selectLanguage.name'
@@ -97,14 +86,15 @@ menu.state('selectLanguage', {
 
 // NAME
 menu.state('selectLanguage.name', {
-    run: () => {
+    run: async () => {
         let name = menu.val;
-        let session = sessions[menu.args.sessionId];
-        menu.session.set(session, 'name', name).then(() => {
-            translate('What type of business do you run:', { to: languages[session.get('language')] }).then(res => {
-                menu.con(res)
-            });
-        });
+        let session = menu.session;
+
+        await session.set('name', name)
+        const lang = await session.get('language');
+
+        const text = await translate('What type of business do you run:', { to: lang });
+        menu.con(text);
     },
     next: {
         '*[a-zA-Z]+': 'selectLanguage.business'
@@ -113,14 +103,15 @@ menu.state('selectLanguage.name', {
 
 // BUSINESS
 menu.state('selectLanguage.business', {
-    run: () => {
+    run: async () => {
         let business = menu.val;
-        let session = sessions[menu.args.sessionId];
-        menu.session.set(session, 'business', business).then(() => {
-            translate('Where do you live:', { to: languages[session.get('language')] }).then(res => {
-                menu.con(res)
-            });
-        });
+        let session = menu.session;
+
+        await session.set('business', business);
+        const lang = await session.get('language');
+
+        const text = await translate('Where do you live:', { to: lang });
+        menu.con(text);
     },
     next: {
         '*[a-zA-Z]+': 'selectLanguage.location'
@@ -130,16 +121,19 @@ menu.state('selectLanguage.business', {
 
 // LOCATION
 menu.state('selectLanguage.location', {
-    run: () => {
+    run: async () => {
         let location = menu.val;
-        let session = sessions[menu.args.sessionId];
-        menu.session.set(session, 'location', location).then(() => {
-            translate('Do you have a bank:' +
-                '\n1. Yes' +
-                '\n2. No', { to: languages[session.get('language')] }).then(res => {
-                    menu.con(res)
-                });
-        });
+        let session = menu.session;
+
+        await session.set('location', location);
+        const lang = await session.get('language');
+
+        const bankText = await translate('Do you have a bank:' +
+            '\n1. Yes' +
+            '\n2. No', { to: lang });
+
+        menu.con(bankText)
+
     },
     next: {
         '1': 'I_Have_Bank',
@@ -149,29 +143,28 @@ menu.state('selectLanguage.location', {
 
 
 menu.state('I_Have_Bank', {
-    run: () => {
+    run: async () => {
         let bank = menu.val;
-        let session = sessions[menu.args.sessionId];
+        let session = menu.session;
 
-        // Upload to DATABASE
-        menu.session.set(session, 'bank', iHaveBank[bank] == '1' ? true : false).then(() => {
-            // End
-            translate(`Please come to the Agent banker located at ${agentLocation} on Monday - Friday from 10:00am to 04:00pm` +
-                '\n' +
-                '\nPlease come with the following:' +
-                '\nRecent utility bill' +
-                '\nGuarantor\'s details' +
-                '\nSavings history from cooperative society like Ajo or Esusu' +
-                '\n' +
-                `\nYou can dial ${number}, for further enquiries`, { to: languages[sessions.get(session, 'location')] }).then(res => {
-                    menu.end(res)
-                });
-        });
+        await session.set('bank', bank == '1' ? true : false)
+        const lang = await session.get('language');
+
+        const text = await translate(`Please come to the Agent banker located at ${agentLocation} on Monday - Friday from 10:00am to 04:00pm` +
+            '\n' +
+            '\nPlease come with the following:' +
+            '\nRecent utility bill' +
+            '\nGuarantor\'s details' +
+            '\nSavings history from cooperative society like Ajo or Esusu' +
+            '\n' +
+            `\nYou can dial ${number}, for further enquiries`, { to: lang });
+
+        menu.end(text);
     }
 });
 
 // Registering USSD handler with Expresss
-const runUSSD = async (req, res) => {
+exports.runUSSD = async (req, res) => {
     let args = {
         phoneNumber: req.body.phoneNumber,
         sessionId: req.body.sessionId,
@@ -181,5 +174,3 @@ const runUSSD = async (req, res) => {
     let resMsg = await menu.run(args);
     res.send(resMsg);
 };
-
-module.exports = { runUSSD };
