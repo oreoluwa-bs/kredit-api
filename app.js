@@ -31,7 +31,7 @@ app.get('/api/v1/', welcomeRoute);
 app.use('/api/v1/ussd', ussdRoute);
 
 app.all('*', (req, res, next) => {
-    next(res.send(`Can't find ${req.originalUrl} on this server!`, 404));
+    res.send(`Can't find ${req.originalUrl} on this server!`, 404);
 });
 
 module.exports = app;
