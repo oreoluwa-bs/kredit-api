@@ -167,7 +167,7 @@ menu.state('I_Have_Bank', {
 exports.runUSSD = async (req, res) => {
     let args = {
         phoneNumber: req.body.phoneNumber,
-        sessionId: Math.floor(Math.random() * 100),
+        sessionId: req.body.sessionId,
         serviceCode: req.body.serviceCode,
         text: req.body.text
     };
